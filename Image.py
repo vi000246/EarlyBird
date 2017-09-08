@@ -76,15 +76,19 @@ class Image:
         #  ###
         # Load
         needle = self.im
-        haystack = cv2.imread('D:\\CaptchaExample\\00000.png',0)
-        w, h = haystack.shape[::-1]
+        template = cv2.imread('D:\\CaptchaExample\\00000.png',0)
+        # 印出圖片長寬
+        print tuple(needle.shape[1::-1])
+        print tuple(template.shape[1::-1])
+
+        w, h = template.shape[::-1]
         # Convert to gray:
         # needle_g = cv2.cvtColor(needle, cv2.CV_32FC1)
         #
         # haystack_g = cv2.cvtColor(haystack, cv2.CV_32FC1)
 
         # Attempt match
-        d = cv2.matchTemplate(needle, haystack, cv2.TM_CCOEFF_NORMED)
+        d = cv2.matchTemplate(needle, template, cv2.TM_CCOEFF_NORMED)
 
         # we want the minimum squared difference
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(d)
@@ -92,7 +96,7 @@ class Image:
         top_left = max_loc
         bottom_right = (top_left[0] + w, top_left[1] + h)
         cv2.rectangle(self.im, top_left, bottom_right, 255, 2)
-        self.dicImg.update({"噪線原始圖": haystack.copy()})
+        self.dicImg.update({"噪線原始圖": template.copy()})
         self.dicImg.update({"找出噪線": self.im.copy()})
 
         cv2.waitKey(0)
