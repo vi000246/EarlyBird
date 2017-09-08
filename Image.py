@@ -38,7 +38,7 @@ class Image:
             image = np.asarray(bytearray(getimg), dtype="uint8")
             self.im = cv2.imdecode(image, cv2.IMREAD_COLOR)
         elif type == 'local':
-            self.im = cv2.imread(getimg)
+            self.im = cv2.imread(getimg,0)
             self.dicImg.update({"原始圖片": self.im.copy()})
 
         #  閾值化
@@ -47,8 +47,55 @@ class Image:
         # 255 是當你將 method 設為 THRESH_BINARY_INV 後，高於 threshold 要設定的顏色
         # 反轉黑白 以利輪廓識別
         gray_image = cv2.cvtColor(self.im, cv2.COLOR_BGR2GRAY)
-        retval, self.im = cv2.threshold(gray_image, 200, 255, cv2.THRESH_BINARY)
+        retval, self.im = cv2.threshold(gray_image, 100, 255, cv2.THRESH_BINARY)
         self.dicImg.update({"閾值化": self.im.copy()})
+
+    #  去噪
+    def removeNoise(self):
+        for i in xrange(len(self.im)):
+            for j in xrange(len(self.im[i])):
+                if self.im[i][j] == 0:
+                    count = 0
+                    for k in range(-2, 3):
+                        for l in range(-2, 3):
+                            try:
+                                if self.im[i + k][j + l] == 0:
+                                    count += 1
+                            except IndexError:
+                                pass
+                    # 這裡 threshold 設 4，當週遭小於 4 個點的話視為雜點
+                    if count <= 4:
+                        self.im[i][j] = 255
+        # 膨脹
+        self.im = cv2.dilate(self.im, (2, 2), iterations=1)
+        self.dicImg.update({"去噪": self.im.copy()})
+
+    def RemoveNoiseLine(self):
+        ###此方法有時template大於原始圖 會出現錯誤
+        ###看起來我輸入的template是長方形 找出來的也會是長方形
+        #  ###
+        # Load
+        needle = self.im
+        haystack = cv2.imread('D:\\CaptchaExample\\00000.png',0)
+        w, h = haystack.shape[::-1]
+        # Convert to gray:
+        # needle_g = cv2.cvtColor(needle, cv2.CV_32FC1)
+        #
+        # haystack_g = cv2.cvtColor(haystack, cv2.CV_32FC1)
+
+        # Attempt match
+        d = cv2.matchTemplate(needle, haystack, cv2.TM_CCOEFF_NORMED)
+
+        # we want the minimum squared difference
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(d)
+
+        top_left = max_loc
+        bottom_right = (top_left[0] + w, top_left[1] + h)
+        cv2.rectangle(self.im, top_left, bottom_right, 255, 2)
+        self.dicImg.update({"噪線原始圖": haystack.copy()})
+        self.dicImg.update({"找出噪線": self.im.copy()})
+
+        cv2.waitKey(0)
 
     #  將圖片顯示出來
     def showImg(self, img=None):
@@ -95,6 +142,8 @@ if __name__ == '__main__':
         if os.path.isfile(os.path.join(path, x))
     ])
     x = Image(path+'\\'+random_filename,'local')
-    x.threshold()
+    # x.threshold()
+    # x.removeNoise()
+    x.RemoveNoiseLine()
     x.showImgEveryStep()
 
