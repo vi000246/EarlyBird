@@ -38,7 +38,7 @@ class Image:
             image = np.asarray(bytearray(getimg), dtype="uint8")
             self.im = cv2.imdecode(image, cv2.IMREAD_COLOR)
         elif type == 'local':
-            self.im = cv2.imread(getimg,0)
+            self.im = cv2.imread(getimg)
             self.dicImg.update({"原始圖片": self.im.copy()})
 
         #  閾值化
@@ -52,6 +52,9 @@ class Image:
 
     #  去噪
     def removeNoise(self):
+        # 先膨脹再去噪
+        self.im = cv2.dilate(self.im, (2, 2), iterations=1)
+
         for i in xrange(len(self.im)):
             for j in xrange(len(self.im[i])):
                 if self.im[i][j] == 0:
@@ -66,26 +69,20 @@ class Image:
                     # 這裡 threshold 設 4，當週遭小於 4 個點的話視為雜點
                     if count <= 4:
                         self.im[i][j] = 255
-        # 膨脹
-        self.im = cv2.dilate(self.im, (2, 2), iterations=1)
+
         self.dicImg.update({"去噪": self.im.copy()})
 
     def RemoveNoiseLine(self):
-        ###此方法有時template大於原始圖 會出現錯誤
-        ###看起來我輸入的template是長方形 找出來的也會是長方形
-        #  ###
         # Load
         needle = self.im
-        template = cv2.imread('D:\\CaptchaExample\\00000.png',0)
-        # 印出圖片長寬
-        print tuple(needle.shape[1::-1])
-        print tuple(template.shape[1::-1])
+        template = cv2.imread('D:\\GoogleDrive\\\CaptchaExample\\templates\\00000000.png',0) # 以gray scale載入圖片
 
-        w, h = template.shape[::-1]
-        # Convert to gray:
-        # needle_g = cv2.cvtColor(needle, cv2.CV_32FC1)
-        #
-        # haystack_g = cv2.cvtColor(haystack, cv2.CV_32FC1)
+        height, width = needle.shape[:2]
+        template_height, template_width = template.shape[:2]
+        # 如果template寬度大於captcha的圖 切掉template右邊的部份
+        if template_width > width:
+            template = template[:,:width]  # Crop from x, y, w, h -> 100, 200, 300, 400
+        retval, template = cv2.threshold(template, 100, 255, cv2.THRESH_BINARY)
 
         # Attempt match
         d = cv2.matchTemplate(needle, template, cv2.TM_CCOEFF_NORMED)
@@ -93,13 +90,55 @@ class Image:
         # we want the minimum squared difference
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(d)
 
-        top_left = max_loc
-        bottom_right = (top_left[0] + w, top_left[1] + h)
-        cv2.rectangle(self.im, top_left, bottom_right, 255, 2)
+        bottom_right = (max_loc[0] + template_width , max_loc[1]+ template_height)
+        cv2.rectangle(self.im, max_loc, bottom_right, 0, 1)
         self.dicImg.update({"噪線原始圖": template.copy()})
         self.dicImg.update({"找出噪線": self.im.copy()})
 
-        cv2.waitKey(0)
+    def RemoveNoiseLine2(self):
+        template = cv2.imread('D:\\GoogleDrive\\\CaptchaExample\\templates\\00000000.png', 0)  # 以gray scale載入圖片
+        # 找出驗證碼干擾線的起點跟終點
+
+        lineColor = 255  # 將線段設定為黑或白色 255:白 0:黑
+        (height, width) = self.im.shape
+        for i in xrange(height):
+            print 'i=',i
+            # 搜尋最左邊pixel 如果此點是黑線 往下找五個點
+            if self.im[i][0] == 0:
+                count = 0
+                for c in range(i, i+5):
+                    try:
+                        if self.im[c][0] == 0:
+                            count += 1
+                        else:
+                            break
+                    except:
+                        pass
+                if count >= 3:
+                    for c in range(0,count):
+                        print 'i+c=', (i + c)
+                        self.im[i + c][0] = lineColor # 將此線段設為白色
+            # 搜尋最右邊pixel
+            rightBorder = width-1
+            if self.im[i][rightBorder] == 0:
+                countRight = 0
+                for c in range(i, i+5):
+                    try:
+                        if self.im[c][rightBorder] == 0:
+                            countRight += 1
+                        else:
+                            break
+                    except:
+                        pass
+                if countRight >= 3:
+                    for c in range(0,countRight):
+                        print 'i+c=', (i + c)
+                        self.im[i + c][rightBorder] = lineColor # 將此線段設為白色
+
+
+        self.dicImg.update({"找出噪線": self.im.copy()})
+
+
 
     #  將圖片顯示出來
     def showImg(self, img=None):
@@ -139,15 +178,15 @@ class Image:
             print '圖片數字陣列為空'
 
 if __name__ == '__main__':
-    path = "D:\\CaptchaExample"
+    path = "D:\\GoogleDrive\\CaptchaExample"
     # 隨機選一張圖片
     random_filename = random.choice([
         x for x in os.listdir(path)
         if os.path.isfile(os.path.join(path, x))
     ])
     x = Image(path+'\\'+random_filename,'local')
-    # x.threshold()
-    # x.removeNoise()
-    x.RemoveNoiseLine()
+    x.threshold()
+    x.RemoveNoiseLine2()
+    x.removeNoise()
     x.showImgEveryStep()
 
